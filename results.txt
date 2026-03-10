@@ -1,0 +1,211 @@
+=================================================================
+MODEL: meta-llama/Llama-3.1-8B-Instruct
+=================================================================
+
+Building ChromaDB vector store with all-MiniLM-L6-v2...
+2026-03-10 15:50:38.432016: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-03-10 15:50:40.332330: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING:tensorflow:From C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+Stored 38 document chunks
+
+Q1: What are the prerequisites for CALENG2?
+  Answer:     The prerequisites for CALENG2 are CALENG1 and FNDMATH....
+  ROUGE-L:    0.174
+  Retrieval:  0.02s
+  Generation: 1.75s
+  Total:      1.77s [OK]
+
+Q2: What are the prerequisites for DATSRAL?
+  Answer:     LBYCPEI is a hard prerequisite for DATSRAL....
+  ROUGE-L:    0.571
+  Retrieval:  0.01s
+  Generation: 1.18s
+  Total:      1.20s [OK]
+
+Q3: What is the co-requisite of LBYCPA2?
+  Answer:     SOFDESG is the co-requisite of LBYCPA2....
+  ROUGE-L:    0.455
+  Retrieval:  0.02s
+  Generation: 1.15s
+  Total:      1.17s [OK]
+
+Q4: What courses are in the seventh term?
+  Answer:     I don't have that information — please consult your adviser....
+  ROUGE-L:    0.000
+  Retrieval:  0.01s
+  Generation: 1.04s
+  Total:      1.06s [OK]
+
+Q5: What does H mean in the prerequisite legend?
+  Answer:     H stands for Hard Pre-Requisite. This means that a student must have passed the course before enrolling in the course th...
+  ROUGE-L:    0.667
+  Retrieval:  0.02s
+  Generation: 1.13s
+  Total:      1.15s [OK]
+
+Q6: What happens if I take a course without passing its soft prerequisite?
+  Answer:     If you take a course without passing its soft prerequisite, the course will be INVALIDATED....
+  ROUGE-L:    0.903
+  Retrieval:  0.02s
+  Generation: 1.17s
+  Total:      1.19s [OK]
+
+Q7: What are the prerequisites for THSCP4A?
+  Answer:     The prerequisites for THSCP4A are EMBDSYS and REMETHS....
+  ROUGE-L:    0.471
+  Retrieval:  0.01s
+  Generation: 1.11s
+  Total:      1.12s [OK]
+
+Q8: What is the thesis sequence for CpE students?
+  Answer:     The CpE thesis/capstone sequence is: THSCP4A (Term 9) → THSCP4B (Term 10) → THSCP4C (Term 12)....
+  ROUGE-L:    0.788
+  Retrieval:  0.01s
+  Generation: 1.46s
+  Total:      1.48s [OK]
+
+Q9: What are the prerequisites for LOGDSGN?
+  Answer:     The prerequisite for LOGDSGN is FUNDLEC....
+  ROUGE-L:    0.308
+  Retrieval:  0.05s
+  Generation: 1.11s
+  Total:      1.16s [OK]
+
+Q10: What are the prerequisites for EMBDSYS?
+  Answer:     MICROS is the hard prerequisite for EMBDSYS....
+  ROUGE-L:    0.429
+  Retrieval:  0.01s
+  Generation: 1.07s
+  Total:      1.08s [OK]
+
+Q11: What is the prerequisite for MICROS?
+  Answer:     I don't have that information — please consult your adviser....
+  ROUGE-L:    0.000
+  Retrieval:  0.01s
+  Generation: 1.15s
+  Total:      1.17s [OK]
+
+Q12: What term is PRCGECP taken and what is its prerequisite?
+  Answer:     PRCGECP is taken in the Eleventh Term. Its prerequisite is REMETHS....
+  ROUGE-L:    0.640
+  Retrieval:  0.01s
+  Generation: 1.07s
+  Total:      1.08s [OK]
+
+Q13: What is the co-requisite relationship between SOFDESG and LBYCPD2?
+  Answer:     SOFDESG is a co-requisite for LBYCPD2....
+  ROUGE-L:    0.261
+  Retrieval:  0.01s
+  Generation: 0.96s
+  Total:      0.97s [OK]
+
+Q14: What prerequisites does REMETHS require?
+  Answer:     REMETHS requires ENGDATA, GEPCOMM, and LOGDSGN as hard prerequisites....
+  ROUGE-L:    1.000
+  Retrieval:  0.01s
+  Generation: 1.14s
+  Total:      1.16s [OK]
+
+Q15: Can I take FUNDLEC without passing FUNDCKT?
+  Answer:     Yes, you can take FUNDLEC without passing FUNDCKT. FUNDLEC is a hard prerequisite for LBYCPC2, but it is not a prerequis...
+  ROUGE-L:    0.222
+  Retrieval:  0.01s
+  Generation: 1.66s
+  Total:      1.67s [OK]
+
+
+=================================================================
+SUMMARY — meta-llama/Llama-3.1-8B-Instruct
+=================================================================
+Avg ROUGE-L:         0.459
+Avg Retrieval Time:  0.02s
+Avg Generation Time: 1.21s
+Avg Total Time:      1.23s
+Under 5s (SO4):      100% of queries
+=================================================================
+
+
+=================================================================
+MODEL: Qwen/Qwen2.5-7B-Instruct
+=================================================================
+
+Building ChromaDB vector store with all-MiniLM-L6-v2...
+Stored 38 document chunks
+
+Q1: What are the prerequisites for CALENG2?
+  Answer:     The prerequisites for CALENG2 are CALENG1, which must be passed before enrolling in CALENG2....
+  ROUGE-L:    0.552
+  Retrieval:  0.02s
+  Generation: 2.05s
+  Total:      2.07s [OK]
+
+Q2: What are the prerequisites for DATSRAL?
+  Answer:     The hard prerequisite for DATSRAL (Data Structures and Algorithms Lecture) is LBYCPEI....
+  ROUGE-L:    0.211
+  Retrieval:  0.01s
+  Generation: 0.95s
+  Total:      0.96s [OK]
+
+Q3: What is the co-requisite of LBYCPA2?
+  Answer:     The co-requisite of LBYCPA2 is SOFDESG (Software Design Lecture)....
+  ROUGE-L:    0.320
+  Retrieval:  0.01s
+  Generation: 0.77s
+  Total:      0.78s [OK]
+
+Q4: What courses are in the seventh term?
+  Answer:     I don't have that information — please consult your adviser....
+  ROUGE-L:    0.000
+  Retrieval:  0.01s
+  Generation: 0.60s
+  Total:      0.62s [OK]
+
+Q5: What does H mean in the prerequisite legend?
+  Answer:     H stands for Hard Pre-Requisite, which means the course must be passed before enrolling in the subsequent course....
+  ROUGE-L:    0.595
+  Retrieval:  0.02s
+  Generation: 0.69s
+  Total:      0.71s [OK]
+
+Q6: What happens if I take a course without passing its soft prerequisite?
+  Answer:     Taking a course without passing its soft prerequisite will cause the course to be INVALIDATED....
+  ROUGE-L:    0.774
+  Retrieval:  0.01s
+  Generation: 0.69s
+  Total:      0.70s [OK]
+
+Q7: What are the prerequisites for THSCP4A?
+Traceback (most recent call last):
+  File "C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\huggingface_hub\utils\_http.py", line 403, in hf_raise_for_status
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1026, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 402 Client Error: Payment Required for url: https://router.huggingface.co/together/v1/chat/completions
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "d:\CODES\thesis\thesis-testing\naive_rag_baseline.py", line 496, in <module>
+    result = run_evaluation(model)
+  File "d:\CODES\thesis\thesis-testing\naive_rag_baseline.py", line 424, in run_evaluation
+    answer = generate(hf_client, model_id, context, test["question"])
+  File "d:\CODES\thesis\thesis-testing\naive_rag_baseline.py", line 369, in generate
+    response = client.chat_completion(
+        model=model_id,
+    ...<16 lines>...
+        temperature=0.1,
+    )
+  File "C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\huggingface_hub\inference\_client.py", line 915, in chat_completion
+    data = self._inner_post(request_parameters, stream=stream)
+  File "C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\huggingface_hub\inference\_client.py", line 275, in _inner_post
+    hf_raise_for_status(response)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Taysh\AppData\Local\Programs\Python\Python313\Lib\site-packages\huggingface_hub\utils\_http.py", line 476, in hf_raise_for_status
+    raise _format(HfHubHTTPError, str(e), response) from e
+huggingface_hub.errors.HfHubHTTPError: 402 Client Error: Payment Required for url: https://router.huggingface.co/together/v1/chat/completions (Request ID: Root=1-69afcd7f-7bc81c1835744a5418deacd3;4e68cd0c-4807-4070-bae0-6c56e8fa33d2)
+
+You have depleted your monthly included credits. Purchase pre-paid credits to continue using Inference Providers. Alternatively, subscribe to PRO to get 20x more included usage.
+
+[Done] exited with code=1 in 52.319 seconds
