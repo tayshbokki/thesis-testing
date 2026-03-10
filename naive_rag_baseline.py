@@ -317,16 +317,23 @@ TEST_CASES = [
 #  BUILD CHROMADB VECTOR STORE
 
 
+chroma_client = chromadb.Client()
+
 def build_vector_store():
     print("Building ChromaDB vector store with all-MiniLM-L6-v2...")
 
     embedding_fn = SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2"
-        # 384-dim embeddings
     )
 
-    client = chromadb.Client()  # in-memory for now, swap to PersistentClient later
-    collection = client.create_collection(
+    # Delete if already exists, then recreate fresh
+    # This ensures clean state for every model evaluation
+    try:
+        chroma_client.delete_collection(name="dlsu_cpe_checklist")
+    except Exception:
+        pass 
+
+    collection = chroma_client.create_collection(
         name="dlsu_cpe_checklist",
         embedding_function=embedding_fn,
     )
