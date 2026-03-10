@@ -1,0 +1,7 @@
+chromadb
+sentence-transformers
+rouge-score
+huggingface-hub
+python-dotenv
+sqlalchemy
+smolagents
