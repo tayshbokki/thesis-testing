@@ -3,38 +3,55 @@ NAIVE RAG BASELINE — DLSU CpE Checklist AY 2022-2023
 =====================================================
 Dense Retrieval (all-MiniLM-L6-v2) + ChromaDB + LLM via HF Inference API
 
-Stage 1: Hard-coded knowledge base (no database yet)
-- Proves RAG pipeline works before adding DB complexity
-- Establishes ROUGE-L, response time baseline scores, more testing basis to add
-when llama is available
+Covers SO3 objectives:
+  1. Benchmark responses with ground truths
+  2. BLEU, METEOR, ROUGE-1, ROUGE-L scores
+  3. Hallucination detection
+  4. Multi-model comparison
+  5. Parameter tuning (temperature, max_tokens)
+
+pip install chromadb sentence-transformers rouge-score
+             huggingface-hub python-dotenv nltk
 """
+
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 from dotenv import load_dotenv
 load_dotenv()
 
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
 import os
+import re
 import time
-from huggingface_hub import InferenceClient
+import json
+import nltk
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
 from rouge_score import rouge_scorer
+from huggingface_hub import InferenceClient
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
+# Download required NLTK data (safe to run multiple times)
+nltk.download('wordnet',   quiet=True)
+nltk.download('punkt',     quiet=True)
+nltk.download('punkt_tab', quiet=True)
+nltk.download('omw-1.4',   quiet=True)
 
+print("HF_TOKEN found:", "YES" if os.getenv("HF_TOKEN") else "NO — check your .env file")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — sourced directly from DLSU CpE Checklist AY 2022-2023
-# Each entry = one retrievable chunk stored in ChromaDB
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 DOCUMENTS = [
-
     # ── FIRST TERM ────────────────────────────────────────────────────────────
     {
         "id": "term1_overview",
         "text": "First Term courses: NSTP101 (National Service Training Program-General Orientation, 0 units), FNDMATH (Foundation in Math FOUN, 5 units), BASCHEM (Basic Chemistry, 3 units), BASPHYS (Basic Physics, 3 units), FNDSTAT (Foundation in Statistics FOUN, 3 units), GEARTAP (Art Appreciation 2A, 3 units). Total: 17 units. No prerequisites required for First Term.",
         "metadata": {"term": "1", "type": "overview"}
     },
-
     # ── SECOND TERM ───────────────────────────────────────────────────────────
     {
         "id": "term2_overview",
@@ -51,11 +68,10 @@ DOCUMENTS = [
         "text": "LBYCPA1 (Programming Logic and Design Laboratory) requires PROLOGI as a co-requisite. Both PROLOGI and LBYCPA1 must be taken in the same term.",
         "metadata": {"term": "2", "type": "corequisite", "course": "LBYCPA1"}
     },
-
     # ── THIRD TERM ────────────────────────────────────────────────────────────
     {
         "id": "term3_overview",
-        "text": "Third Term courses: NSTPCW2 (National Service Training Program 2 2D, 3 units) requires NSTPCW1 as hard prerequisite, LCLSONE (Lasallian Studies 1, 1 unit), SAS1000 (Student Affairs Service 1000 LS, 0 units), LASARE1 (Lasallian Recollection 1, 0 units), ENGPHYS (Physics for Engineers 1B, 3 units) requires CALENG1 as soft/hard prerequisite and BASPHYS, LBYPH1A (Physics for Engineers Laboratory 1B, 1 unit) requires ENGPHYS as co-requisite, CALENG2 (Integral Calculus 1A, 3 units) requires CALENG1 as hard prerequisite, LBYEC2A (Computer Fundamentals and Programming 2, 1 unit) requires LBYEC2A as hard prerequisite, LBYCPEI (Object Oriented Programming Laboratory 1E, 2 units) requires PROLOGI as hard prerequisite, GEPCOMM (Purposive Communications 2A, 3 units), LCFAITH (Faith Worth Living, 3 units), GELECSP (Social Science and Philosophy 2B, 3 units). Total: 19 units.",
+        "text": "Third Term courses: NSTPCW2 (National Service Training Program 2 2D, 3 units) requires NSTPCW1 as hard prerequisite, LCLSONE (Lasallian Studies 1, 1 unit), SAS1000 (Student Affairs Service 1000 LS, 0 units), LASARE1 (Lasallian Recollection 1, 0 units), ENGPHYS (Physics for Engineers 1B, 3 units) requires CALENG1 as soft/hard prerequisite and BASPHYS, LBYPH1A (Physics for Engineers Laboratory 1B, 1 unit) requires ENGPHYS as co-requisite, CALENG2 (Integral Calculus 1A, 3 units) requires CALENG1 as hard prerequisite, LBYCPEI (Object Oriented Programming Laboratory 1E, 2 units) requires PROLOGI as hard prerequisite, GEPCOMM (Purposive Communications 2A, 3 units), LCFAITH (Faith Worth Living, 3 units), GELECSP (Social Science and Philosophy 2B, 3 units). Total: 19 units.",
         "metadata": {"term": "3", "type": "overview"}
     },
     {
@@ -68,7 +84,6 @@ DOCUMENTS = [
         "text": "CALENG2 (Integral Calculus) requires CALENG1 as a hard prerequisite. Students must pass CALENG1 before enrolling in CALENG2.",
         "metadata": {"term": "3", "type": "prerequisite", "course": "CALENG2"}
     },
-
     # ── FOURTH TERM ───────────────────────────────────────────────────────────
     {
         "id": "term4_overview",
@@ -90,7 +105,6 @@ DOCUMENTS = [
         "text": "FUNDCKT (Fundamentals of Electrical Circuits Lecture) requires ENGPHYS as a hard prerequisite. LBYEC2M (Fundamentals of Electrical Circuits Lab) requires FUNDCKT as a co-requisite.",
         "metadata": {"term": "4", "type": "prerequisite", "course": "FUNDCKT"}
     },
-
     # ── FIFTH TERM ────────────────────────────────────────────────────────────
     {
         "id": "term5_overview",
@@ -107,7 +121,6 @@ DOCUMENTS = [
         "text": "FUNDLEC (Fundamentals of Electronic Circuits Lecture) requires FUNDCKT as a hard prerequisite. LBYCPC2 (Fundamentals of Electronic Circuits Laboratory) requires FUNDLEC as a co-requisite.",
         "metadata": {"term": "5", "type": "prerequisite", "course": "FUNDLEC"}
     },
-
     # ── SIXTH TERM ────────────────────────────────────────────────────────────
     {
         "id": "term6_overview",
@@ -124,7 +137,6 @@ DOCUMENTS = [
         "text": "FDCNSYS (Feedback and Control Systems) requires NUMMETS as a hard prerequisite. LBYCPC3 (Feedback and Control System Laboratory) requires FDCNSYS as a co-requisite.",
         "metadata": {"term": "6", "type": "prerequisite", "course": "FDCNSYS"}
     },
-
     # ── SEVENTH TERM ──────────────────────────────────────────────────────────
     {
         "id": "term7_overview",
@@ -136,11 +148,10 @@ DOCUMENTS = [
         "text": "MICROS (Microprocessors Lecture) requires LOGDSGN as a hard prerequisite. LBYCPA3 (Microprocessors Laboratory) requires MICROS as a co-requisite.",
         "metadata": {"term": "7", "type": "prerequisite", "course": "MICROS"}
     },
-
     # ── EIGHTH TERM ───────────────────────────────────────────────────────────
     {
         "id": "term8_overview",
-        "text": "Eighth Term courses: CSYSARC (Computer Architecture and Organization Lecture 1E, 3 units) requires MICROS as hard prerequisite, LBYCPD3 (Computer Architecture and Organization Laboratory 1E, 1 unit) requires CSYSARC as co-requisite, EMBDSYS (Embedded Systems Lecture 1E, 3 units) requires MICROS as hard prerequisite, LBYCPM3 (Embedded Systems Laboratory 1E, 1 unit) requires EMBDSYS as co-requisite, LBYCPG3 (Online Technologies Laboratory, 1 unit), GELECST (Science and Technology 2B, 3 units), REMETHS (Methods of Research for CpE 1E, 3 units) requires ENGDATA, GEPCOMM, and LOGDSGN as hard prerequisites, OPESSYS (Operating Systems Lecture 1E, 3 units) requires LBYCPA2 as hard prerequisite, LBYCPO1 (Operating Systems Laboratory 1E, 1 unit) requires OPESSYS as co-requisite. Total: 8 units.",
+        "text": "Eighth Term courses: CSYSARC (Computer Architecture and Organization Lecture 1E, 3 units) requires MICROS as hard prerequisite, LBYCPD3 (Computer Architecture and Organization Laboratory 1E, 1 unit) requires CSYSARC as co-requisite, EMBDSYS (Embedded Systems Lecture 1E, 3 units) requires MICROS as hard prerequisite, LBYCPM3 (Embedded Systems Laboratory 1E, 1 unit) requires EMBDSYS as co-requisite, GELECST (Science and Technology 2B, 3 units), REMETHS (Methods of Research for CpE 1E, 3 units) requires ENGDATA, GEPCOMM, and LOGDSGN as hard prerequisites, OPESSYS (Operating Systems Lecture 1E, 3 units) requires LBYCPA2 as hard prerequisite, LBYCPO1 (Operating Systems Laboratory 1E, 1 unit) requires OPESSYS as co-requisite. Total: 8 units.",
         "metadata": {"term": "8", "type": "overview"}
     },
     {
@@ -158,7 +169,6 @@ DOCUMENTS = [
         "text": "REMETHS (Methods of Research for CpE) requires ENGDATA, GEPCOMM, and LOGDSGN as hard prerequisites.",
         "metadata": {"term": "8", "type": "prerequisite", "course": "REMETHS"}
     },
-
     # ── NINTH TERM ────────────────────────────────────────────────────────────
     {
         "id": "term9_overview",
@@ -175,11 +185,10 @@ DOCUMENTS = [
         "text": "DSIGPRO (Digital Signal Processing Lecture) requires FDCNSYS as a hard prerequisite and EMBDSYS as a soft prerequisite. LBYCPA4 (Digital Signal Processing Laboratory) requires DSIGPRO as a co-requisite.",
         "metadata": {"term": "9", "type": "prerequisite", "course": "DSIGPRO"}
     },
-
     # ── TENTH TERM ────────────────────────────────────────────────────────────
     {
         "id": "term10_overview",
-        "text": "Tenth Term courses: LCENWRD (Encountering the Word in the World, 3 units), EMERTEC (Emerging Technologies in CpE 1E, 3 units) requires EMBDSYS as hard prerequisite, THSCP4B (CpE Practice and Design 2 1E, 1 unit) requires THSCP4A as hard prerequisite, ENGTREP (Technopreneurship 101 1C, 3 units) requires EMBDSYS as hard prerequisite, CONETSC (Computer Networks and Security Lecture 1E, 3 units) requires DIGDACM as hard prerequisite, LBYCPB4 (Computer Networks and Security Laboratory 1E, 1 unit) requires CONETSC as co-requisite, CPECAPS (Operational Technologies, 2 units) requires LBYCPB3 and LBYCPB4 as co/co requisite, CPECOG2 (CpE Elective 2 Lecture 1F, 2 units) requires THSCP4A as soft prerequisite, LBYCPH3 (CpE Elective 2 Laboratory 1F, 1 unit) requires CPECOG2 as co-requisite, SAS3000 (Student Affairs Series 3, 0 units) requires SAS2000 as hard prerequisite. Total units vary.",
+        "text": "Tenth Term courses: LCENWRD (Encountering the Word in the World, 3 units), EMERTEC (Emerging Technologies in CpE 1E, 3 units) requires EMBDSYS as hard prerequisite, THSCP4B (CpE Practice and Design 2 1E, 1 unit) requires THSCP4A as hard prerequisite, ENGTREP (Technopreneurship 101 1C, 3 units) requires EMBDSYS as hard prerequisite, CONETSC (Computer Networks and Security Lecture 1E, 3 units) requires DIGDACM as hard prerequisite, LBYCPB4 (Computer Networks and Security Laboratory 1E, 1 unit) requires CONETSC as co-requisite, CPECAPS (Operational Technologies, 2 units) requires LBYCPB3 and LBYCPB4 as co/co requisite, CPECOG2 (CpE Elective 2 Lecture 1F, 2 units) requires THSCP4A as soft prerequisite, LBYCPH3 (CpE Elective 2 Laboratory 1F, 1 unit) requires CPECOG2 as co-requisite, SAS3000 (Student Affairs Series 3, 0 units) requires SAS2000 as hard prerequisite.",
         "metadata": {"term": "10", "type": "overview"}
     },
     {
@@ -192,14 +201,12 @@ DOCUMENTS = [
         "text": "THSCP4B (CpE Practice and Design 2) requires THSCP4A as a hard prerequisite. This is the second part of the capstone/thesis sequence.",
         "metadata": {"term": "10", "type": "prerequisite", "course": "THSCP4B"}
     },
-
     # ── ELEVENTH TERM ─────────────────────────────────────────────────────────
     {
         "id": "term11_overview",
         "text": "Eleventh Term: PRCGECP (Practicum for CpE 1E, 3 units) requires REMETHS as hard prerequisite. Total: 3 units. This is the practicum/internship term.",
         "metadata": {"term": "11", "type": "overview"}
     },
-
     # ── TWELFTH TERM ──────────────────────────────────────────────────────────
     {
         "id": "term12_overview",
@@ -208,10 +215,9 @@ DOCUMENTS = [
     },
     {
         "id": "thscp4c_prereq",
-        "text": "THSCP4C (CpE Practice and Design 3) requires THSCP4B as a hard prerequisite. This is the final part of the capstone/thesis sequence. The full thesis sequence is THSCP4A → THSCP4B → THSCP4C.",
+        "text": "THSCP4C (CpE Practice and Design 3) requires THSCP4B as a hard prerequisite. The full thesis sequence is THSCP4A (Term 9) → THSCP4B (Term 10) → THSCP4C (Term 12).",
         "metadata": {"term": "12", "type": "prerequisite", "course": "THSCP4C"}
     },
-
     # ── GENERAL POLICIES ──────────────────────────────────────────────────────
     {
         "id": "prereq_legend",
@@ -245,10 +251,10 @@ DOCUMENTS = [
     },
 ]
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TEST CASES — ground truths written from the checklist above
-# These are your SO1 / SO3 evaluation inputs
-# ══════════════════════════════════════════════════════════════════════════════
+
+
+# OBJECTIVE 1: BENCHMARK TEST CASES WITH GROUND TRUTHS
+
 
 TEST_CASES = [
     {
@@ -314,58 +320,62 @@ TEST_CASES = [
 ]
 
 
-#  BUILD CHROMADB VECTOR STORE
+
+# OBJECTIVE 4: MODELS TO COMPARE
+# OBJECTIVE 5: PARAMETER CONFIGURATIONS TO TUNE
+
+
+MODELS_TO_TEST = [
+    "meta-llama/Llama-3.1-8B-Instruct",
+    # "Qwen/Qwen2.5-7B-Instruct",           # uncomment when credits available
+    "mistralai/Mistral-7B-Instruct-v0.3",  # uncomment when credits available
+]
+
+PARAM_CONFIGS = [
+    {"temperature": 0.1, "max_tokens": 200, "label": "t=0.1 tok=200"},  # default
+    {"temperature": 0.0, "max_tokens": 200, "label": "t=0.0 tok=200"},  # deterministic
+    {"temperature": 0.3, "max_tokens": 200, "label": "t=0.3 tok=200"},  # flexible
+    {"temperature": 0.1, "max_tokens": 400, "label": "t=0.1 tok=400"},  # longer answers
+]
+
+
+
+# CHROMADB SETUP
 
 
 chroma_client = chromadb.Client()
 
-def build_vector_store():
-    print("Building ChromaDB vector store with all-MiniLM-L6-v2...")
-
-    embedding_fn = SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2"
-    )
-
-    # Delete if already exists, then recreate fresh
-    # This ensures clean state for every model evaluation
+def build_vector_store() -> chromadb.Collection:
+    print("  Building ChromaDB vector store with all-MiniLM-L6-v2...")
+    embedding_fn = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     try:
         chroma_client.delete_collection(name="dlsu_cpe_checklist")
     except Exception:
-        pass 
-
+        pass
     collection = chroma_client.create_collection(
         name="dlsu_cpe_checklist",
         embedding_function=embedding_fn,
     )
-
     collection.add(
         ids=[doc["id"] for doc in DOCUMENTS],
         documents=[doc["text"] for doc in DOCUMENTS],
         metadatas=[doc["metadata"] for doc in DOCUMENTS],
     )
-
-    print(f"Stored {len(DOCUMENTS)} document chunks\n")
+    print(f"  Stored {len(DOCUMENTS)} document chunks\n")
     return collection
 
 
-
-# STEP 2: RETRIEVAL FUNCTION
-
-
-def retrieve(collection, query: str, top_k: int = 3) -> str:
-    results = collection.query(
-        query_texts=[query],
-        n_results=top_k,
-    )
-    # Flatten retrieved chunks into one context string
-    chunks = results["documents"][0]
-    return "\n\n".join(chunks)
+def retrieve(collection: chromadb.Collection, query: str, top_k: int = 3) -> str:
+    results = collection.query(query_texts=[query], n_results=top_k)
+    return "\n\n".join(results["documents"][0])
 
 
 
-#  GENERATION FUNCTION
+# GENERATION
 
-def generate(client: InferenceClient, model_id: str, context: str, question: str) -> str:
+
+def generate(client: InferenceClient, model_id: str, context: str,
+             question: str, config: dict) -> str:
     response = client.chat_completion(
         model=model_id,
         messages=[
@@ -383,124 +393,198 @@ def generate(client: InferenceClient, model_id: str, context: str, question: str
                 "content": f"Context:\n{context}\n\nQuestion: {question}"
             }
         ],
-        max_tokens=200,
-        temperature=0.1,
+        max_tokens=config["max_tokens"],
+        temperature=config["temperature"],
     )
     return response.choices[0].message.content.strip()
+
+
+
+# OBJECTIVE 2: SCORING — BLEU, METEOR, ROUGE-1, ROUGE-L
+
+
+rouge_eval = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
+smoother   = SmoothingFunction().method4
+
+def score_response(ground_truth: str, answer: str) -> dict:
+    r     = rouge_eval.score(ground_truth, answer)
+    ref   = [ground_truth.lower().split()]
+    hyp   = answer.lower().split()
+    bleu  = sentence_bleu(ref, hyp, smoothing_function=smoother)
+    met   = meteor_score([ground_truth.lower().split()], answer.lower().split())
+    return {
+        "rouge1":  r['rouge1'].fmeasure,
+        "rouge_l": r['rougeL'].fmeasure,
+        "bleu":    bleu,
+        "meteor":  met,
+    }
+
+
+# OBJECTIVE 3: HALLUCINATION DETECTION
+
+def detect_hallucination(ground_truth: str, answer: str) -> tuple:
+    gt  = ground_truth.lower()
+    ans = answer.lower()
+
+    # Check 1: retrieval miss — said no info but ground truth clearly exists
+    no_info = ["don't have that information", "cannot find", "no information"]
+    if any(p in ans for p in no_info) and len(ground_truth) > 30:
+        return True, "RETRIEVAL MISS"
+
+    # Check 2: contradiction — says yes/can when ground truth says no/cannot
+    gt_negative  = any(w in gt  for w in ["no.", "cannot", "must not", "not allowed"])
+    ans_positive = any(w in ans for w in ["yes,", "yes.", "you can", "is allowed"])
+    if gt_negative and ans_positive:
+        return True, "CONTRADICTION"
+
+    # Check 3: wrong course codes mentioned in answer
+    gt_codes  = set(re.findall(r'\b[A-Z]{3,8}\d*[A-Z]?\b', ground_truth))
+    ans_codes = set(re.findall(r'\b[A-Z]{3,8}\d*[A-Z]?\b', answer))
+    noise     = {"I", "H", "S", "C", "OK", "ONLY", "DLSU", "NO", "YES", "BOTH"}
+    wrong     = ans_codes - gt_codes - noise
+    if wrong:
+        return True, f"WRONG CODES: {wrong}"
+
+    return False, "OK"
 
 
 
 # EVALUATION LOOP
 
 
-def run_evaluation(model_id: str):
-    print(f"\n{'='*65}")
-    print(f"MODEL: {model_id}")
-    print(f"{'='*65}\n")
+def run_evaluation(model_id: str, config: dict, collection: chromadb.Collection,
+                   hf_client: InferenceClient) -> dict:
 
-    # Setup
-    collection = build_vector_store()
-    hf_client = InferenceClient(token=os.getenv("HF_TOKEN"))
-    rouge = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
+    label = config["label"]
+    print(f"\n  --- Config: {label} ---")
 
-    scores = []
+    all_scores      = []
     retrieval_times = []
     generation_times = []
-    total_times = []
-    results_log = []
+    total_times     = []
+    halluc_flags    = []
+    results_log     = []
 
     for i, test in enumerate(TEST_CASES):
-        print(f"Q{i+1}: {test['question']}")
-
         total_start = time.time()
 
-        # Retrieval
         t0 = time.time()
         context = retrieve(collection, test["question"], top_k=3)
-        retrieval_time = time.time() - t0
+        ret_time = time.time() - t0
 
-        # Generation
         t1 = time.time()
-        answer = generate(hf_client, model_id, context, test["question"])
-        generation_time = time.time() - t1
+        answer = generate(hf_client, model_id, context, test["question"], config)
+        gen_time = time.time() - t1
 
         total_time = time.time() - total_start
 
-        # Score
-        score = rouge.score(test["ground_truth"], answer)
-        rouge_l = score["rougeL"].fmeasure
+        scores = score_response(test["ground_truth"], answer)
+        is_halluc, halluc_reason = detect_hallucination(test["ground_truth"], answer)
 
-        scores.append(rouge_l)
-        retrieval_times.append(retrieval_time)
-        generation_times.append(generation_time)
+        all_scores.append(scores)
+        retrieval_times.append(ret_time)
+        generation_times.append(gen_time)
         total_times.append(total_time)
+        halluc_flags.append(is_halluc)
 
-        print(f"  Answer:     {answer[:120]}...")
-        print(f"  ROUGE-L:    {rouge_l:.3f}")
-        print(f"  Retrieval:  {retrieval_time:.2f}s")
-        print(f"  Generation: {generation_time:.2f}s")
-        print(f"  Total:      {total_time:.2f}s {'[OK]' if total_time < 5 else '[OVER 5s]'}\n")
+        h_tag = "[HALLUC]" if is_halluc else "[OK]"
+        t_tag = "[OK]" if total_time < 5 else "[OVER 5s]"
+
+        print(f"  Q{i+1:02d}: {test['question'][:55]}")
+        print(f"        Answer:  {answer[:100]}...")
+        print(f"        ROUGE-1:{scores['rouge1']:6.3f} | ROUGE-L:{scores['rouge_l']:6.3f} | "
+              f"BLEU:{scores['bleu']:6.3f} | METEOR:{scores['meteor']:6.3f}")
+        print(f"        Time:{total_time:5.2f}s {t_tag} | Hallucination: {h_tag} {halluc_reason}")
+        print()
 
         results_log.append({
-            "question": test["question"],
-            "ground_truth": test["ground_truth"],
-            "answer": answer,
-            "rouge_l": rouge_l,
-            "retrieval_time": retrieval_time,
-            "generation_time": generation_time,
-            "total_time": total_time,
+            "question":        test["question"],
+            "ground_truth":    test["ground_truth"],
+            "answer":          answer,
+            **scores,
+            "hallucination":   is_halluc,
+            "halluc_reason":   halluc_reason,
+            "retrieval_time":  ret_time,
+            "generation_time": gen_time,
+            "total_time":      total_time,
         })
 
-    # Summary
-    avg_rouge    = sum(scores) / len(scores)
-    avg_ret_time = sum(retrieval_times) / len(retrieval_times)
-    avg_gen_time = sum(generation_times) / len(generation_times)
-    avg_total    = sum(total_times) / len(total_times)
-    under_5s     = sum(1 for t in total_times if t < 5) / len(total_times) * 100
+    n = len(TEST_CASES)
+    halluc_count = sum(halluc_flags)
 
-    print(f"\n{'='*65}")
-    print(f"SUMMARY — {model_id}")
-    print(f"{'='*65}")
-    print(f"Avg ROUGE-L:         {avg_rouge:.3f}")
-    print(f"Avg Retrieval Time:  {avg_ret_time:.2f}s")
-    print(f"Avg Generation Time: {avg_gen_time:.2f}s")
-    print(f"Avg Total Time:      {avg_total:.2f}s")
-    print(f"Under 5s (SO4):      {under_5s:.0f}% of queries")
-    print(f"{'='*65}\n")
+    def avg(key): return sum(s[key] for s in all_scores) / n
 
-    return {
-        "model": model_id,
-        "avg_rouge_l": avg_rouge,
-        "avg_retrieval_time": avg_ret_time,
-        "avg_generation_time": avg_gen_time,
-        "avg_total_time": avg_total,
-        "pct_under_5s": under_5s,
-        "detail": results_log,
+    summary = {
+        "model":               model_id,
+        "config":              label,
+        "avg_rouge1":          avg("rouge1"),
+        "avg_rouge_l":         avg("rouge_l"),
+        "avg_bleu":            avg("bleu"),
+        "avg_meteor":          avg("meteor"),
+        "hallucination_count": halluc_count,
+        "hallucination_rate":  halluc_count / n * 100,
+        "avg_retrieval_time":  sum(retrieval_times)   / n,
+        "avg_generation_time": sum(generation_times)  / n,
+        "avg_total_time":      sum(total_times)        / n,
+        "pct_under_5s":        sum(1 for t in total_times if t < 5) / n * 100,
+        "detail":              results_log,
     }
 
+    print(f"  SUMMARY [{label}]")
+    print(f"  ROUGE-1:{summary['avg_rouge1']:6.3f} | ROUGE-L:{summary['avg_rouge_l']:6.3f} | "
+          f"BLEU:{summary['avg_bleu']:6.3f} | METEOR:{summary['avg_meteor']:6.3f}")
+    print(f"  Hallucinations: {halluc_count}/{n} ({summary['hallucination_rate']:.0f}%)")
+    print(f"  Avg Time: {summary['avg_total_time']:.2f}s | Under 5s: {summary['pct_under_5s']:.0f}%")
+
+    return summary
 
 
-# MAIN — test one model at a time, add more to MODELS list as needed
 
+# MAIN
 
-MODELS_TO_TEST = [
-    "meta-llama/Llama-3.1-8B-Instruct",   # baseline
-    "Qwen/Qwen2.5-7B-Instruct",          # uncomment to compare
-    "mistralai/Mistral-7B-Instruct-v0.3",# uncomment to compare
-]
 
 if __name__ == "__main__":
-    all_results = []
+    all_summaries = []
+    hf_client = InferenceClient(token=os.getenv("HF_TOKEN"))
 
-    for model in MODELS_TO_TEST:
-        result = run_evaluation(model)
-        all_results.append(result)
+    for model_id in MODELS_TO_TEST:
+        print(f"\n{'='*65}")
+        print(f"MODEL: {model_id}")
+        print(f"{'='*65}")
 
-    # Final comparison table
-    if len(all_results) > 1:
-        print("\nFINAL MODEL COMPARISON")
-        print(f"{'Model':<45} {'ROUGE-L':>8} {'Avg Time':>10} {'<5s':>6}")
-        print("-" * 75)
-        for r in sorted(all_results, key=lambda x: -x["avg_rouge_l"]):
-            print(f"{r['model']:<45} {r['avg_rouge_l']:>8.3f} "
-                  f"{r['avg_total_time']:>9.2f}s {r['pct_under_5s']:>5.0f}%")
+        collection = build_vector_store()
+
+        for config in PARAM_CONFIGS:
+            try:
+                summary = run_evaluation(model_id, config, collection, hf_client)
+                all_summaries.append(summary)
+            except Exception as e:
+                print(f"  [SKIPPED] {config['label']} — {e}\n")
+                continue
+
+    # ── FINAL COMPARISON TABLE ─────────────────────────────────────────────
+    if all_summaries:
+        print(f"\n{'='*100}")
+        print("FINAL COMPARISON TABLE")
+        print(f"{'='*100}")
+        header = f"{'Model + Config':<45} {'R-1':>6} {'R-L':>6} {'BLEU':>6} {'METEOR':>7} {'Halluc':>8} {'AvgTime':>8} {'<5s':>5}"
+        print(header)
+        print("-" * 100)
+
+        for s in sorted(all_summaries, key=lambda x: -x["avg_rouge_l"]):
+            name = f"{s['model'].split('/')[-1]} [{s['config']}]"
+            print(
+                f"{name:<45} "
+                f"{s['avg_rouge1']:>6.3f} "
+                f"{s['avg_rouge_l']:>6.3f} "
+                f"{s['avg_bleu']:>6.3f} "
+                f"{s['avg_meteor']:>7.3f} "
+                f"{s['hallucination_count']:>4}/{len(TEST_CASES)}"
+                f"{s['avg_total_time']:>8.2f}s "
+                f"{s['pct_under_5s']:>4.0f}%"
+            )
+
+        #full results for thesis records
+        with open("baseline_results.json", "w", encoding="utf-8") as f:
+            json.dump(all_summaries, f, indent=2, ensure_ascii=False)
+        print(f"\nFull results saved to baseline_results.json")
